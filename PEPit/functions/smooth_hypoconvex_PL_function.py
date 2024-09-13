@@ -2,34 +2,11 @@ from PEPit.function import Function
 
 
 class SmoothHypoconvexPLFunction(Function):
-    """
-    The :class:`ConvexQGFunction` class overwrites the `add_class_constraints` method of :class:`Function`,
-    implementing the interpolation constraints of the class of quadratically upper bounded (:math:`\\text{QG}^+` [1]),
-    i.e. :math:`\\forall x, f(x) - f_\\star \\leqslant \\frac{L}{2} \\|x-x_\\star\\|^2`, and convex functions.
-
-    Attributes:
-        L (float): The quadratic upper bound parameter
-
-    General quadratically upper bounded (:math:`\\text{QG}^+`) convex functions are characterized
-    by the quadratic growth parameter `L`, hence can be instantiated as
-
-    Example:
-        >>> from PEPit import PEP
-        >>> from PEPit.functions import ConvexQGFunction
-        >>> problem = PEP()
-        >>> func = problem.declare_function(function_class=ConvexQGFunction, L=1)
-
-    References:
-
-    `[1] B. Goujaud, A. Taylor, A. Dieuleveut (2022).
-    Optimal first-order methods for convex functions with a quadratic upper bound.
-    <https://arxiv.org/pdf/2205.15033.pdf>`_
-
-    """
 
     def __init__(self,
                  L,
                  m,
+                 m_p,
                  is_leaf=True,
                  decomposition_dict=None,
                  reuse_gradient=False,
@@ -57,6 +34,7 @@ class SmoothHypoconvexPLFunction(Function):
         # Store L
         self.L = L
         self.m = m
+        self.m_p = m_p
 
     @staticmethod
     def set_convexity_constraint_i_j(xi, gi, fi,
@@ -69,28 +47,23 @@ class SmoothHypoconvexPLFunction(Function):
         constraint = (fi - fj >= gj * (xi - xj))
 
         return constraint
-
-    def set_lower_qg_convexity_constraint_i_j(self,
-                                        xi, gi, fi,
-                                        xj, gj, fj,
-                                        ):
-        """
-        Formulates the list of interpolation constraints for self (qg convex function).
-        """
-        # Interpolation conditions of QG convex functions class
-        constraint = (fi - fj <= gj * (xi - xj) + 1 / (2 * self.m) * gj ** 2)
+    
+    def set_hypoconvexity_constraint(self, xi, gi, fi,
+                                     xj, gj, fj):
+        constraint = (fi - fj >=
+                      gj * (xi - xj)
+                      + 1 / (2 * self.L) * (gi - gj) ** 2
+                      + self.m / (2 * (1 - self.m / self.L)) * (
+                              xi - xj - 1 / self.L * (gi - gj)) ** 2)
 
         return constraint
+
     
-    def set_upper_qg_convexity_constraint_i_j(self,
+    def set_PL_constraint(self,
                                         xi, gi, fi,
                                         xj, gj, fj,
                                         ):
-        """
-        Formulates the list of interpolation constraints for self (qg convex function).
-        """
-        # Interpolation conditions of QG convex functions class
-        constraint = (fi - fj >= gj * (xi - xj) + 1 / (2 * self.L) * gj ** 2)
+        constraint = (fi - fj - (1/(2 * self.m_p)) * gi ** 2 <= 0)
 
         return constraint
 
@@ -101,21 +74,15 @@ class SmoothHypoconvexPLFunction(Function):
         """
         if self.list_of_stationary_points == list():
             self.stationary_point()
-
-        self.add_constraints_from_two_lists_of_points(list_of_points_1=self.list_of_stationary_points,
-                                                      list_of_points_2=self.list_of_points,
-                                                      constraint_name="lower_qg_convexity",
-                                                      set_class_constraint_i_j=self.set_lower_qg_convexity_constraint_i_j,
-                                                      )
         
-        self.add_constraints_from_two_lists_of_points(list_of_points_1=self.list_of_stationary_points,
-                                                      list_of_points_2=self.list_of_points,
-                                                      constraint_name="upper_qg_convexity",
-                                                      set_class_constraint_i_j=self.set_upper_qg_convexity_constraint_i_j,
+        self.add_constraints_from_two_lists_of_points(list_of_points_1=self.list_of_points,
+                                                      list_of_points_2=self.list_of_stationary_points,
+                                                      constraint_name="PL",
+                                                      set_class_constraint_i_j=self.set_PL_constraint,
                                                       )
 
         self.add_constraints_from_two_lists_of_points(list_of_points_1=self.list_of_points,
                                                       list_of_points_2=self.list_of_points,
-                                                      constraint_name="convexity",
-                                                      set_class_constraint_i_j=self.set_convexity_constraint_i_j,
+                                                      constraint_name="hypoconvexity",
+                                                      set_class_constraint_i_j=self.set_hypoconvexity_constraint,
                                                       )

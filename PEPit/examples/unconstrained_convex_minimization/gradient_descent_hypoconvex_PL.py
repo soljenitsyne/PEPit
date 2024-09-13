@@ -1,8 +1,11 @@
 from PEPit import PEP
 from PEPit.functions import SmoothHypoconvexPLFunction
 
+import matplotlib.pyplot as plt
+import numpy as np
 
-def wc_gradient_descent_hypoconvex_PL(L, m, gamma, n, wrapper="cvxpy", solver=None, verbose=1):
+
+def wc_gradient_descent_hypoconvex_PL(L, m, m_p, gamma, n, wrapper="cvxpy", solver=None, verbose=1):
     """
     Consider the convex minimization problem
 
@@ -93,7 +96,7 @@ def wc_gradient_descent_hypoconvex_PL(L, m, gamma, n, wrapper="cvxpy", solver=No
     problem = PEP()
 
     # Declare a strongly convex smooth function
-    func = problem.declare_function(SmoothHypoconvexPLFunction, L=L, m=m)
+    func = problem.declare_function(SmoothHypoconvexPLFunction, L = L, m = m, m_p = m_p)
 
     # Start by defining its unique optimal point xs = x_* and corresponding function value fs = f_*
     xs = func.stationary_point()
@@ -127,12 +130,17 @@ def wc_gradient_descent_hypoconvex_PL(L, m, gamma, n, wrapper="cvxpy", solver=No
         print('\tTheoretical guarantee:\t f(x_n)-f_* <= {:.6} ||x_0 - x_*||^2'.format(theoretical_tau))
 
     # Return the worst-case guarantee of the evaluated method (and the reference theoretical value)
-    return pepit_tau, theoretical_tau
+    return pepit_tau
 
 
 if __name__ == "__main__":
+
     L = 1
-    m = 0.5
-    pepit_tau, theoretical_tau = wc_gradient_descent_hypoconvex_PL(L=L, m=m, gamma=.2 / L, n=100,
-                                                               wrapper="cvxpy", solver=None,
-                                                               verbose=1)
+    m_ps = np.linspace(start=0.1, stop=L, num=50, endpoint=False)
+    th_taus = [(2*L - 2*mu)/(2*L + mu) for mu in m_ps]
+    taus = [wc_gradient_descent_hypoconvex_PL(L=L, m = -L, m_p = mu, gamma=.1 / L, n=20, wrapper="cvxpy", solver=None, verbose=-1) for mu in m_ps]
+    print(taus)
+    plt.scatter(m_ps, taus)
+    plt.plot(m_ps, th_taus)
+    plt.show()
+
